@@ -1,19 +1,28 @@
-
-import torch, os
+import numpy as np
+import torch
 import torch.nn.functional as F
 from PIL import Image
-from .briarmbg import BriaRMBG
 from torchvision.transforms.functional import normalize
-import numpy as np
 
-current_directory = os.path.dirname(os.path.abspath(__file__))
-device = "cuda" if torch.cuda.is_available() else "cpu"
+from comfy.model_downloader import get_or_download
+from comfy.model_downloader_types import HuggingFile
+from comfy.model_management import load_model_gpu, text_encoder_device, text_encoder_offload_device
+from comfy.model_management_types import ModelManageable
+from comfy.model_patcher import ModelPatcher
+from comfy.utils import load_torch_file
+from .briarmbg import BriaRMBG
+
+KNOWN_BRIA_MODELS = [HuggingFile("briaai/RMBG-1.4", "model.safetensors")]
+FOLDER_NAME = "bria_rmbg_models"
+
 
 def tensor2pil(image):
     return Image.fromarray(np.clip(255. * image.cpu().numpy().squeeze(), 0, 255).astype(np.uint8))
 
+
 def pil2tensor(image):
     return torch.from_numpy(np.array(image).astype(np.float32) / 255.0).unsqueeze(0)
+
 
 def resize_image(image):
     image = image.convert('RGB')
@@ -37,14 +46,18 @@ class BRIA_RMBG_ModelLoader_Zho:
     RETURN_NAMES = ("rmbgmodel",)
     FUNCTION = "load_model"
     CATEGORY = "🧹BRIA RMBG"
-  
+
     def load_model(self):
+        model_path = get_or_download(FOLDER_NAME, "model.safetensors", KNOWN_BRIA_MODELS)
+        model_weights = load_torch_file(model_path, safe_load=True, device=text_encoder_device())
+
         net = BriaRMBG()
-        model_path = os.path.join(current_directory, "RMBG-1.4/model.pth")
-        net.load_state_dict(torch.load(model_path, map_location=device))
-        net.to(device)
-        net.eval() 
-        return [net]
+        net.load_state_dict(state_dict=model_weights)
+        net.eval()
+
+        wrapped = ModelPatcher(net, text_encoder_device(), text_encoder_offload_device())
+        load_model_gpu(wrapped)
+        return wrapped,
 
 
 class BRIA_RMBG_Zho:
@@ -60,35 +73,36 @@ class BRIA_RMBG_Zho:
             }
         }
 
-    RETURN_TYPES = ("IMAGE", "MASK", )
-    RETURN_NAMES = ("image", "mask", )
+    RETURN_TYPES = ("IMAGE", "MASK",)
+    RETURN_NAMES = ("image", "mask",)
     FUNCTION = "remove_background"
     CATEGORY = "🧹BRIA RMBG"
-  
+
     def remove_background(self, rmbgmodel, image):
+        rmbgmodel: torch.nn.Module = rmbgmodel.model
         processed_images = []
         processed_masks = []
 
         for image in image:
             orig_image = tensor2pil(image)
-            w,h = orig_image.size
+            w, h = orig_image.size
             image = resize_image(orig_image)
             im_np = np.array(image)
-            im_tensor = torch.tensor(im_np, dtype=torch.float32).permute(2,0,1)
-            im_tensor = torch.unsqueeze(im_tensor,0)
-            im_tensor = torch.divide(im_tensor,255.0)
-            im_tensor = normalize(im_tensor,[0.5,0.5,0.5],[1.0,1.0,1.0])
+            im_tensor = torch.tensor(im_np, dtype=torch.float32).permute(2, 0, 1)
+            im_tensor = torch.unsqueeze(im_tensor, 0)
+            im_tensor = torch.divide(im_tensor, 255.0)
+            im_tensor = normalize(im_tensor, [0.5, 0.5, 0.5], [1.0, 1.0, 1.0])
             if torch.cuda.is_available():
-                im_tensor=im_tensor.cuda()
+                im_tensor = im_tensor.cuda()
 
-            result=rmbgmodel(im_tensor)
-            result = torch.squeeze(F.interpolate(result[0][0], size=(h,w), mode='bilinear') ,0)
+            result = rmbgmodel(im_tensor)
+            result = torch.squeeze(F.interpolate(result[0][0], size=(h, w), mode='bilinear'), 0)
             ma = torch.max(result)
             mi = torch.min(result)
-            result = (result-mi)/(ma-mi)    
-            im_array = (result*255).cpu().data.numpy().astype(np.uint8)
+            result = (result - mi) / (ma - mi)
+            im_array = (result * 255).cpu().data.numpy().astype(np.uint8)
             pil_im = Image.fromarray(np.squeeze(im_array))
-            new_im = Image.new("RGBA", pil_im.size, (0,0,0,0))
+            new_im = Image.new("RGBA", pil_im.size, (0, 0, 0, 0))
             new_im.paste(orig_image, mask=pil_im)
 
             new_im_tensor = pil2tensor(new_im)  # 将PIL图像转换为Tensor
@@ -101,7 +115,7 @@ class BRIA_RMBG_Zho:
         new_masks = torch.cat(processed_masks, dim=0)
 
         return new_ims, new_masks
-        
+
 
 NODE_CLASS_MAPPINGS = {
     "BRIA_RMBG_ModelLoader_Zho": BRIA_RMBG_ModelLoader_Zho,

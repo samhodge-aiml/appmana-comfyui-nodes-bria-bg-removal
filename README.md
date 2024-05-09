@@ -1,6 +1,12 @@
+# Installable BRIA
+
+This is a fork that makes this plugin installable.
+
+```shell
+pip install git+https://github.com/AppMana/ComfyUI-BRIA_AI-RMBG.git
+```
 
 ![BR_](https://github.com/ZHO-ZHO-ZHO/ComfyUI-BRIA_AI-RMBG/assets/140084057/c8167676-c347-468a-a719-aee3c4c69310)
-
 
 # ComfyUI-BRIA_AI-RMBG
 
