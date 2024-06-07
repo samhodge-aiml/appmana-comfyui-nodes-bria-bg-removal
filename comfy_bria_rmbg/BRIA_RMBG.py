@@ -6,8 +6,7 @@ from torchvision.transforms.functional import normalize
 
 from comfy.model_downloader import get_or_download
 from comfy.model_downloader_types import HuggingFile
-from comfy.model_management import load_model_gpu, text_encoder_device, text_encoder_offload_device
-from comfy.model_management_types import ModelManageable
+from comfy.model_management import load_model_gpu, unet_offload_device, get_torch_device
 from comfy.model_patcher import ModelPatcher
 from comfy.utils import load_torch_file
 from .briarmbg import BriaRMBG
@@ -49,14 +48,13 @@ class BRIA_RMBG_ModelLoader_Zho:
 
     def load_model(self):
         model_path = get_or_download(FOLDER_NAME, "model.safetensors", KNOWN_BRIA_MODELS)
-        model_weights = load_torch_file(model_path, safe_load=True, device=text_encoder_device())
+        model_weights = load_torch_file(model_path, safe_load=True, device=unet_offload_device())
 
         net = BriaRMBG()
         net.load_state_dict(state_dict=model_weights)
         net.eval()
 
-        wrapped = ModelPatcher(net, text_encoder_device(), text_encoder_offload_device())
-        load_model_gpu(wrapped)
+        wrapped = ModelPatcher(net, get_torch_device(), unet_offload_device())
         return wrapped,
 
 
@@ -78,7 +76,9 @@ class BRIA_RMBG_Zho:
     FUNCTION = "remove_background"
     CATEGORY = "🧹BRIA RMBG"
 
-    def remove_background(self, rmbgmodel, image):
+    def remove_background(self, rmbgmodel: ModelPatcher, image):
+        load_model_gpu(rmbgmodel)
+        rmbgmodel_wrapped = rmbgmodel
         rmbgmodel: torch.nn.Module = rmbgmodel.model
         processed_images = []
         processed_masks = []
@@ -92,8 +92,7 @@ class BRIA_RMBG_Zho:
             im_tensor = torch.unsqueeze(im_tensor, 0)
             im_tensor = torch.divide(im_tensor, 255.0)
             im_tensor = normalize(im_tensor, [0.5, 0.5, 0.5], [1.0, 1.0, 1.0])
-            if torch.cuda.is_available():
-                im_tensor = im_tensor.cuda()
+            im_tensor = im_tensor.to(dtype=rmbgmodel_wrapped.model_dtype(), device=rmbgmodel_wrapped.current_device)
 
             result = rmbgmodel(im_tensor)
             result = torch.squeeze(F.interpolate(result[0][0], size=(h, w), mode='bilinear'), 0)
@@ -110,6 +109,7 @@ class BRIA_RMBG_Zho:
 
             processed_images.append(new_im_tensor)
             processed_masks.append(pil_im_tensor)
+            del im_tensor
 
         new_ims = torch.cat(processed_images, dim=0)
         new_masks = torch.cat(processed_masks, dim=0)
