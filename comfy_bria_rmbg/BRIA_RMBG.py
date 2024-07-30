@@ -6,7 +6,7 @@ from torchvision.transforms.functional import normalize
 
 from comfy.model_downloader import get_or_download
 from comfy.model_downloader_types import HuggingFile
-from comfy.model_management import load_model_gpu, unet_offload_device, get_torch_device
+from comfy.model_management import unet_offload_device, get_torch_device, load_models_gpu
 from comfy.model_patcher import ModelPatcher
 from comfy.utils import load_torch_file
 from .briarmbg import BriaRMBG
@@ -77,7 +77,7 @@ class BRIA_RMBG_Zho:
     CATEGORY = "🧹BRIA RMBG"
 
     def remove_background(self, rmbgmodel: ModelPatcher, image):
-        load_model_gpu(rmbgmodel)
+        load_models_gpu([rmbgmodel])
         rmbgmodel_wrapped = rmbgmodel
         rmbgmodel: torch.nn.Module = rmbgmodel.model
         processed_images = []
