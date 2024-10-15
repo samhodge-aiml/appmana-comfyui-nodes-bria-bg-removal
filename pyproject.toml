@@ -1,3 +1,18 @@
+[project]
+name = "comfy_bria_rmbg"
+description = "Unofficial [BRIA Background Removal v1.4](https://huggingface.co/briaai/RMBG-1.4) of BRIA RMBG Model for ComfyUI"
+version = "0.0.1"
+license = { file = "LICENSE" }
+dependencies = [
+  "comfyui>=0.2.3"
+]
+
 [build-system]
-requires = ["setuptools", "wheel", "pip"]
+requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages]
+find = { }
+
+[project.entry-points."comfyui.custom_nodes"]
+comfy_bria_rmbg = "comfy_bria_rmbg.BRIA_RMBG"
