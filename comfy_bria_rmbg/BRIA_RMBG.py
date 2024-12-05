@@ -4,16 +4,19 @@ import torch.nn.functional as F
 from PIL import Image
 from torchvision.transforms.functional import normalize
 
-from comfy.model_downloader import get_or_download
+from comfy.model_downloader import get_or_download, add_model_folder_path, add_known_models, KnownDownloadables
 from comfy.model_downloader_types import HuggingFile
 from comfy.model_management import unet_offload_device, get_torch_device, load_models_gpu
 from comfy.model_patcher import ModelPatcher
 from comfy.utils import load_torch_file
 from .briarmbg import BriaRMBG
 
-KNOWN_BRIA_MODELS = [HuggingFile("briaai/RMBG-1.4", "model.safetensors")]
 FOLDER_NAME = "bria_rmbg_models"
+KNOWN_BRIA_MODELS = KnownDownloadables(data=[HuggingFile("briaai/RMBG-1.4", "model.safetensors")],
+                                       folder_name=FOLDER_NAME)
 
+add_model_folder_path(FOLDER_NAME)
+add_known_models(FOLDER_NAME, KNOWN_BRIA_MODELS)
 
 def tensor2pil(image):
     return Image.fromarray(np.clip(255. * image.cpu().numpy().squeeze(), 0, 255).astype(np.uint8))
