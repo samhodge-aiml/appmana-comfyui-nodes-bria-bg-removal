@@ -4,7 +4,8 @@ description = "Unofficial [BRIA Background Removal v1.4](https://huggingface.co/
 version = "0.0.1"
 license = { file = "LICENSE" }
 dependencies = [
-  "comfyui>=0.2.3"
+  "comfyui>=0.2.3",
+  "comfyui-frontend-package @ git+https://github.com/AppMana/appmana-comfyui-frontend.git#796787ffb4603e182415dbc9632160741fa29f94&subdirectory=comfyui_frontend_package",
 ]
 
 [build-system]
